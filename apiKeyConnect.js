@@ -6,12 +6,14 @@ const APIKEYCONNECT_STORE_URL = 'https://chromewebstore.google.com/detail/apikey
 
 /**
  * Main function to initiate connection process for the currently selected AI provider.
- * FIXED: Now uses traditional callbacks without async/await to preserve extension popup triggering
+ * FIXED: Ensures state is properly reset even when errors occur
  */
 export function connectApi() {
+    // Reset state first - this fixes the "already in progress" bug
+    // If a previous attempt left the app in a bad state
     if (AppState.isConnecting) {
-        console.warn("Connection attempt already in progress.");
-        return; // Prevent multiple clicks
+        console.log("Resetting previous connection attempt that was left hanging");
+        updateState({ isConnecting: false });
     }
 
     // --- Basic Checks ---
@@ -34,7 +36,7 @@ export function connectApi() {
         return;
     }
 
-    // --- Start Connection Attempt ---
+    // Now we can set the connecting state
     updateState({ isConnecting: true });
     Elements.apiStatusEl.textContent = `Checking APIKeyConnect...`;
     Elements.apiStatusEl.className = 'key-status';
