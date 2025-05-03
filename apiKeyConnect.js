@@ -6,13 +6,12 @@ const APIKEYCONNECT_STORE_URL = 'https://chromewebstore.google.com/detail/apikey
 
 /**
  * Main function to initiate connection process for the currently selected AI provider.
- * FIXED: Ensures state is properly reset even when errors occur
+ * Now follows the EXACT approach from the working example.
  */
 export function connectApi() {
-    // Reset state first - this fixes the "already in progress" bug
-    // If a previous attempt left the app in a bad state
+    // Reset state if stuck from previous attempt
     if (AppState.isConnecting) {
-        console.log("Resetting previous connection attempt that was left hanging");
+        console.log("Resetting previous connection attempt");
         updateState({ isConnecting: false });
     }
 
@@ -30,167 +29,202 @@ export function connectApi() {
         alert("Secure connection required. Please access via HTTPS.");
         return;
     }
-
-    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-        alert("Requires a Chromium browser with extension support.");
+    
+    // Show initial connecting message - EXACTLY like the working example
+    Elements.apiStatusEl.innerHTML = `
+      <span style="color: #6c757d;">⏳ Connecting to extension...</span>
+    `;
+    Elements.connectApiBtn.disabled = true;
+    
+    // Now check if the extension API is available
+    if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMessage) {
+        showExtensionRequired("Extension Access Unavailable", 
+          "To use this feature, you need to install the APIKeyConnect extension.");
         return;
     }
-
-    // Now we can set the connecting state
+    
+    // Start the connection process
     updateState({ isConnecting: true });
-    Elements.apiStatusEl.textContent = `Checking APIKeyConnect...`;
-    Elements.apiStatusEl.className = 'key-status';
-    Elements.connectApiBtn.disabled = true;
-    Elements.connectApiBtn.innerHTML = `<span class="spinner"></span> Pinging...`;
-
-    // Set a timeout to handle case where extension doesn't respond
-    const pingTimeout = setTimeout(() => {
-        console.warn("Extension ping timed out");
-        showExtensionRequired(providerConfig.name);
-        updateState({ isConnecting: false });
-    }, 2000);
-
+    
+    // Try to contact the extension - EXACTLY like working example
     try {
-        console.log(`Pinging APIKeyConnect (ID: ${EXTENSION_ID})...`);
+        const pingTimeout = setTimeout(() => {
+            // If ping times out, the extension is not installed
+            showExtensionRequired();
+            updateState({ isConnecting: false });
+        }, 1000);
         
-        // CRITICAL FIX: Use traditional callbacks (no async/await or Promise chains)
-        // This maintains the direct connection between user interaction and extension popup
-        chrome.runtime.sendMessage(
-            EXTENSION_ID, 
-            { type: 'ping' },
-            function(response) {
-                clearTimeout(pingTimeout);
-                
-                // Check for Chrome runtime error
-                if (chrome.runtime.lastError) {
-                    console.warn(`APIKeyConnect ping failed: ${chrome.runtime.lastError.message}`);
-                    showExtensionRequired(providerConfig.name);
-                    updateState({ isConnecting: false });
-                    return;
+        chrome.runtime.sendMessage(EXTENSION_ID, { type: "ping" }, function(pingResponse) {
+            clearTimeout(pingTimeout);
+            
+            // Check for Chrome runtime error
+            if (chrome.runtime.lastError) {
+                // Specific error for when extension not installed
+                if (chrome.runtime.lastError.message.includes("not installed")) {
+                    showExtensionRequired();
+                } else {
+                    // Other runtime errors
+                    console.log("Extension check error:", chrome.runtime.lastError.message);
+                    showExtensionError("Error communicating with extension: " + chrome.runtime.lastError.message);
                 }
-                
-                if (!response || !response.success) {
-                    console.warn(`APIKeyConnect ping failed or returned unsuccessful:`, response);
-                    showExtensionRequired(providerConfig.name);
-                    updateState({ isConnecting: false });
-                    return;
-                }
-                
-                // EXTENSION IS ACTIVE - IMMEDIATELY REQUEST KEY
-                // This immediate follow-up is crucial for triggering the authorization popup
-                // Don't create any intermediate functions that break the chain from user click
-                Elements.connectApiBtn.innerHTML = `<span class="spinner"></span> Requesting Key...`;
-                
-                // First try without key name for default key - most likely to trigger popup
-                chrome.runtime.sendMessage(
-                    EXTENSION_ID,
-                    { 
-                        type: 'requestKey',
-                        serviceId: providerConfig.serviceId
-                        // No keyName specified - tries default key
-                    },
-                    function(keyResponse) {
-                        if (chrome.runtime.lastError) {
-                            console.warn(`Error requesting default key: ${chrome.runtime.lastError.message}`);
-                            // Fall back to trying specific key names
-                            tryNextKeyName(0, providerConfig);
-                            return;
-                        }
-                        
-                        if (keyResponse && keyResponse.success && keyResponse.key) {
-                            console.log(`Retrieved default key for ${providerConfig.name}`);
-                            handleSuccessfulConnection(keyResponse.key, providerConfig);
-                        } else {
-                            // No default key found, try specific names
-                            console.log("No default key found, trying specific key names...");
-                            tryNextKeyName(0, providerConfig);
-                        }
-                    }
-                );
+                updateState({ isConnecting: false });
+                return;
             }
-        );
+            
+            // Check for valid response
+            if (!pingResponse || !pingResponse.success) {
+                console.log("Invalid extension response:", pingResponse);
+                showExtensionRequired();
+                updateState({ isConnecting: false });
+                return;
+            }
+            
+            // Extension is installed and responded successfully, try to get a key
+            // CRITICAL: Use a separate function for key request - EXACTLY like working example
+            requestAPIKey(providerConfig);
+        });
     } catch (error) {
-        clearTimeout(pingTimeout);
-        console.error(`Error sending initial ping to APIKeyConnect:`, error);
-        showExtensionRequired(providerConfig.name);
+        console.error("Extension access error:", error);
+        showExtensionRequired();
         updateState({ isConnecting: false });
     }
 }
 
 /**
- * **MODIFIED:** Updates the UI to prompt for installation *persistently*.
+ * Function to request API key once extension is confirmed available
+ * CRITICAL: This separate function matches the working code exactly
  */
-function showExtensionRequired(providerName = 'AI Provider') {
-    console.log("APIKeyConnect extension required.");
-    if (!Elements.apiStatusEl || !Elements.connectApiBtn) return; // Guard
-
-    Elements.apiStatusEl.textContent = '❌ Extension Required';
-    Elements.apiStatusEl.className = 'key-status error';
-    Elements.connectApiBtn.disabled = false;
-    Elements.connectApiBtn.innerHTML = 'Install APIKeyConnect'; // Set button text
-
-    // **CRITICAL:** Remove previous listeners and set the new one
-    Elements.connectApiBtn.onclick = null; // Remove previous listener first
-    Elements.connectApiBtn.onclick = () => { // Assign new listener
-        console.log("Opening APIKeyConnect store page...");
-        window.open(APIKEYCONNECT_STORE_URL, '_blank');
-
-        // Update status to guide user
-        Elements.apiStatusEl.textContent = 'Install extension, then Refresh Page & Connect.';
-        Elements.connectApiBtn.innerHTML = 'Install Extension'; // Keep text as Install
-        Elements.connectApiBtn.disabled = true; // Briefly disable after click
-
-        // Optionally re-enable after a delay, but keep the 'Install' text/action
-        setTimeout(() => {
-            Elements.connectApiBtn.disabled = false;
-            // Keep the 'Install' text and the onclick handler pointing to the store
-        }, 2000);
-    };
-
-    // Reset the connecting flag if it was set
-    if (AppState.isConnecting) {
-         updateState({ isConnecting: false });
+function requestAPIKey(providerConfig) {
+    try {
+        // Try retrieving without a key name first (default key)
+        chrome.runtime.sendMessage(EXTENSION_ID, {
+            type: "requestKey",
+            serviceId: providerConfig.serviceId
+        }, function(response) {
+            // Check for Chrome runtime error
+            if (chrome.runtime.lastError) {
+                console.log("Key request error:", chrome.runtime.lastError.message);
+                showExtensionError("Error communicating with extension");
+                updateState({ isConnecting: false });
+                return;
+            }
+            
+            if (response && response.success) {
+                // Success with default key
+                handleSuccessfulConnection(response.key, providerConfig);
+            } else {
+                // Try with specific key names from config
+                tryNextKeyName(0, providerConfig);
+            }
+        });
+    } catch (error) {
+        showExtensionError("Error requesting API key: " + error.message);
+        updateState({ isConnecting: false });
     }
 }
 
 /**
- * Recursively try potential key names defined in the provider config.
- * Uses traditional callbacks to maintain extension popup chain if needed.
+ * Show extension required message - similar to the working example
+ */
+function showExtensionRequired(title = "APIKeyConnect Extension Required", message = "To use this feature, you need to install the APIKeyConnect extension.") {
+    Elements.apiStatusEl.innerHTML = `
+        <div style="padding: 15px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; text-align: center; margin-bottom: 15px;">
+            <div style="font-size: 36px; margin-bottom: 12px;">🔑</div>
+            <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #1e293b;">${title}</h3>
+            <p style="margin-bottom: 12px; color: #475569;">${message}</p>
+            <a href="https://chromewebstore.google.com/detail/apikey-connect/edkgcdpbaggofodchjfkfiblhohmkbac" 
+               target="_blank" 
+               style="display: inline-block; padding: 8px 16px; background-color: #4f46e5; color: white; border-radius: 4px; text-decoration: none; font-weight: 500; transition: all 0.2s ease; margin-bottom: 8px;">
+              Install Extension
+            </a>
+        </div>
+    `;
+    
+    Elements.connectApiBtn.textContent = "Install Extension";
+    Elements.connectApiBtn.style.backgroundColor = "#f59e0b";
+    Elements.connectApiBtn.disabled = false;
+    
+    // Open extension page when the button is clicked
+    Elements.connectApiBtn.onclick = function() {
+        window.open(APIKEYCONNECT_STORE_URL, '_blank');
+    };
+    
+    // Reset state
+    updateState({ isConnecting: false });
+}
+
+/**
+ * Function to show extension error
+ */
+function showExtensionError(errorMessage) {
+    Elements.apiStatusEl.innerHTML = `
+      <span style="color: #dc3545;">❌ Extension Error: ${errorMessage}</span>
+      <br><small>Please try refreshing the page or reinstalling the extension.</small>
+    `;
+    Elements.connectApiBtn.disabled = false;
+    Elements.connectApiBtn.textContent = "Try Again";
+    Elements.connectApiBtn.style.backgroundColor = "";
+    
+    // Reset click handler to try again
+    Elements.connectApiBtn.onclick = connectApi;
+    
+    // Reset state
+    updateState({ isConnecting: false });
+}
+
+/**
+ * Try each key name in sequence - matches working example approach
  */
 function tryNextKeyName(index, providerConfig) {
     const keyNames = providerConfig.keyNames;
 
     if (index >= keyNames.length) {
-        // Tried all names, none found
-        Elements.apiStatusEl.textContent = `❌ No ${providerConfig.name} Key Found`;
-        Elements.apiStatusEl.className = 'key-status error';
-        alert(`No key found for ${providerConfig.name} in APIKeyConnect.\n\nPlease add a key with one of these names:\n- ${keyNames.join('\n- ')}\n\nThen click Connect again.`);
-        resetConnectionState(providerConfig.name); // Reset UI/state after alert
+        // We've tried all options, show comprehensive error
+        Elements.apiStatusEl.innerHTML = `
+            <span style="color: #dc3545;">❌ No ${providerConfig.name} key found</span>
+            <br><small>Please add a ${providerConfig.name} key in your APIKEY Connect extension.</small>
+            <br><small>1. Click the extension icon</small>
+            <br><small>2. Select "${providerConfig.name}" from the dropdown</small>
+            <br><small>3. Enter your API key</small>
+            <br><small>4. Click "Add Key"</small>
+        `;
+        Elements.connectApiBtn.disabled = false;
+        
+        // Reset the click handler
+        Elements.connectApiBtn.onclick = connectApi;
+        Elements.connectApiBtn.textContent = "Connect API Key";
+        Elements.connectApiBtn.style.backgroundColor = "";
+        
+        // Reset state
+        updateState({ isConnecting: false });
         return;
     }
-
-    const currentKeyName = keyNames[index];
-    Elements.apiStatusEl.textContent = `Checking key: "${currentKeyName}"...`;
-
-    chrome.runtime.sendMessage(
-        EXTENSION_ID,
-        { type: 'requestKey', serviceId: providerConfig.serviceId, keyName: currentKeyName },
-        (response) => {
-            if (chrome.runtime.lastError) {
-                console.warn(`Error requesting key "${currentKeyName}": ${chrome.runtime.lastError.message}`);
-                setTimeout(() => tryNextKeyName(index + 1, providerConfig), 200);
-                return;
-            }
-            if (response && response.success && response.key) {
-                console.log(`Retrieved key for ${providerConfig.name} using name "${currentKeyName}".`);
-                handleSuccessfulConnection(response.key, providerConfig); // SUCCESS
-            } else {
-                if (response && response.error) console.log(`Key "${currentKeyName}" error: ${response.error}`);
-                else console.log(`Key "${currentKeyName}" not found.`);
-                setTimeout(() => tryNextKeyName(index + 1, providerConfig), 200); // Try next
-            }
+    
+    // Try with the next key name
+    Elements.apiStatusEl.innerHTML = `
+        <span style="color: #6c757d;">⏳ Trying to find your key... (${index + 1}/${keyNames.length})</span>
+    `;
+    
+    chrome.runtime.sendMessage(EXTENSION_ID, {
+        type: "requestKey",
+        serviceId: providerConfig.serviceId,
+        keyName: keyNames[index]
+    }, function(response) {
+        // Check for Chrome runtime error
+        if (chrome.runtime.lastError) {
+            // Skip to next key name on error
+            setTimeout(() => tryNextKeyName(index + 1, providerConfig), 300);
+            return;
         }
-    );
+        
+        if (response && response.success) {
+            // Success with this key name
+            handleSuccessfulConnection(response.key, providerConfig);
+        } else {
+            // Try next key name
+            setTimeout(() => tryNextKeyName(index + 1, providerConfig), 300);
+        }
+    });
 }
 
 /**
@@ -205,21 +239,14 @@ function handleSuccessfulConnection(key, providerConfig) {
     localStorage.setItem(`${providerConfig.serviceId}_api_key`, key);
     localStorage.setItem('last_connected_provider', providerConfig.serviceId);
 
-    updateConnectionStatus(true, providerConfig.name);
-    // CRITICAL: Ensure the button's onclick is reset to the default connect action
-    Elements.connectApiBtn.onclick = connectApi;
-}
-
-/**
- * Reset UI and state, typically after a key lookup failure (not after missing extension).
- */
-function resetConnectionState(providerName = 'AI Provider') {
-    updateState({ apiKey: '', isConnected: false, isConnecting: false });
-    // Update button text based on currently selected provider
-    const currentProviderId = Elements.aiProviderSelect?.value || AppState.aiProvider || 'openai';
-    const currentProviderName = AI_PROVIDERS[currentProviderId]?.name || providerName;
-    updateConnectionStatus(false, currentProviderName); // Update UI status correctly
-    // Ensure the correct listener is attached
+    Elements.apiStatusEl.innerHTML = `
+        <span style="color: #28a745;">✅ ${providerConfig.name} API Key connected successfully!</span>
+    `;
+    Elements.connectApiBtn.textContent = "Key Connected";
+    Elements.connectApiBtn.style.backgroundColor = "#6c757d";
+    Elements.connectApiBtn.disabled = false;
+    
+    // Reset the click handler
     Elements.connectApiBtn.onclick = connectApi;
 }
 
@@ -242,8 +269,6 @@ export function checkSavedKeys() {
     // If not auto-connected, ensure the initial button text is correct
     if (!connected) {
         updateInitialConnectButtonText();
-        // Check if the extension exists on load, maybe? Optional enhancement.
-        // Could do a silent ping here.
     }
 }
 
