@@ -15,7 +15,7 @@ export const AI_PROVIDERS = {
     openai: {
         name: 'OpenAI',
         serviceId: 'openai', // ID expected by APIKeyConnect
-        keyNames: ['OpenAI API', 'OpenAI Key', 'OpenAI', 'Default OpenAI Key'],
+        keyNames: ['OpenAI API', 'OpenAI Key', 'OpenAI', 'Default OpenAI API Key'],
         models: { // Example models
             default: 'gpt-3.5-turbo',
             advanced: 'gpt-4' // Or newer models if available
