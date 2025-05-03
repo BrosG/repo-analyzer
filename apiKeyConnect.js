@@ -6,6 +6,7 @@ const APIKEYCONNECT_STORE_URL = 'https://chromewebstore.google.com/detail/apikey
 
 /**
  * Main function to initiate connection process for the currently selected AI provider.
+ * FIXED: Now uses traditional callbacks without async/await to preserve extension popup triggering
  */
 export function connectApi() {
     if (AppState.isConnecting) {
@@ -49,6 +50,9 @@ export function connectApi() {
 
     try {
         console.log(`Pinging APIKeyConnect (ID: ${EXTENSION_ID})...`);
+        
+        // CRITICAL FIX: Use traditional callbacks (no async/await or Promise chains)
+        // This maintains the direct connection between user interaction and extension popup
         chrome.runtime.sendMessage(
             EXTENSION_ID, 
             { type: 'ping' },
@@ -70,12 +74,37 @@ export function connectApi() {
                     return;
                 }
                 
-                // Extension is active - directly try requesting key IMMEDIATELY after ping
-                // This is crucial - popup authorization needs to be close to user interaction
-                console.log("APIKeyConnect extension active. Directly requesting key...");
+                // EXTENSION IS ACTIVE - IMMEDIATELY REQUEST KEY
+                // This immediate follow-up is crucial for triggering the authorization popup
+                // Don't create any intermediate functions that break the chain from user click
+                Elements.connectApiBtn.innerHTML = `<span class="spinner"></span> Requesting Key...`;
                 
-                // First try without specifying a key name (uses default key)
-                requestDefaultKey(providerConfig);
+                // First try without key name for default key - most likely to trigger popup
+                chrome.runtime.sendMessage(
+                    EXTENSION_ID,
+                    { 
+                        type: 'requestKey',
+                        serviceId: providerConfig.serviceId
+                        // No keyName specified - tries default key
+                    },
+                    function(keyResponse) {
+                        if (chrome.runtime.lastError) {
+                            console.warn(`Error requesting default key: ${chrome.runtime.lastError.message}`);
+                            // Fall back to trying specific key names
+                            tryNextKeyName(0, providerConfig);
+                            return;
+                        }
+                        
+                        if (keyResponse && keyResponse.success && keyResponse.key) {
+                            console.log(`Retrieved default key for ${providerConfig.name}`);
+                            handleSuccessfulConnection(keyResponse.key, providerConfig);
+                        } else {
+                            // No default key found, try specific names
+                            console.log("No default key found, trying specific key names...");
+                            tryNextKeyName(0, providerConfig);
+                        }
+                    }
+                );
             }
         );
     } catch (error) {
@@ -83,45 +112,6 @@ export function connectApi() {
         console.error(`Error sending initial ping to APIKeyConnect:`, error);
         showExtensionRequired(providerConfig.name);
         updateState({ isConnecting: false });
-    }
-}
-
-/**
- * First try requesting default key without specifying a name
- * This is more likely to trigger the authorization popup immediately
- */
-function requestDefaultKey(providerConfig) {
-    Elements.connectApiBtn.innerHTML = `<span class="spinner"></span> Requesting Key...`;
-    
-    try {
-        chrome.runtime.sendMessage(
-            EXTENSION_ID,
-            { 
-                type: 'requestKey', 
-                serviceId: providerConfig.serviceId,
-                // No keyName specified - tries default key
-            },
-            function(response) {
-                if (chrome.runtime.lastError) {
-                    console.warn(`Error requesting default key: ${chrome.runtime.lastError.message}`);
-                    // Fall back to trying specific key names
-                    tryNextKeyName(0, providerConfig);
-                    return;
-                }
-                
-                if (response && response.success && response.key) {
-                    console.log(`Retrieved default key for ${providerConfig.name}`);
-                    handleSuccessfulConnection(response.key, providerConfig);
-                } else {
-                    // No default key found, try specific names
-                    console.log("No default key found, trying specific key names...");
-                    tryNextKeyName(0, providerConfig);
-                }
-            }
-        );
-    } catch (error) {
-        console.error(`Error requesting default key: ${error}`);
-        tryNextKeyName(0, providerConfig);
     }
 }
 
@@ -163,6 +153,7 @@ function showExtensionRequired(providerName = 'AI Provider') {
 
 /**
  * Recursively try potential key names defined in the provider config.
+ * Uses traditional callbacks to maintain extension popup chain if needed.
  */
 function tryNextKeyName(index, providerConfig) {
     const keyNames = providerConfig.keyNames;
