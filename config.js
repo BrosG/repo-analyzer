@@ -16,7 +16,7 @@ export const AI_PROVIDERS = {
         name: 'OpenAI',
         serviceId: 'openai', // ID expected by APIKeyConnect
         keyNames: [
-            "Default OpenAI Key"  // This is the exact key name used in the working site
+            "Default OpenAI API Key"  // This is the exact key name used in the working site
         ],
         models: {
             default: 'gpt-3.5-turbo',
