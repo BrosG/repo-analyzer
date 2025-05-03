@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RepoAnalyzer - AI-Powered GitHub Repository Analysis</title>
+    <meta name="description" content="RepoAnalyzer uses AI to analyze GitHub repositories, providing intelligent issue recommendations, code insights, and project health summaries." />
+
+    <!-- Preconnect Hints -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="site-header">
+        <div class="container">
+            <nav class="navbar" aria-label="Main Navigation">
+                <a href="/" class="logo">
+                    <span class="logo-icon" aria-hidden="true"><i class="fas fa-code-branch"></i></span>
+                    RepoAnalyzer
+                </a>
+                <div class="nav-links">
+                    <a href="#hero" class="nav-link">Home</a>
+                    <a href="#features" class="nav-link">Features</a>
+                    <a href="#how-it-works" class="nav-link">How It Works</a>
+                    <!-- Generic Connect Button -->
+                    <button id="connectApiBtn" class="apikey-connect-btn">Connect AI Provider API</button>
+                    <span id="apiStatus" class="key-status" aria-live="polite"></span>
+                    <button id="themeToggleBtn" class="dark-theme-toggle" title="Toggle dark mode" aria-label="Toggle dark mode">
+                        <i class="fas fa-moon" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section id="hero" class="hero" aria-labelledby="hero-heading">
+        <div class="container">
+            <div class="hero-content">
+                <h1 id="hero-heading">Analyze GitHub Repositories with AI</h1>
+                <p>Generate intelligent issue recommendations, analyze code, and gain insights from any GitHub repository.</p>
+                <!-- Analysis Form -->
+                <form id="repoAnalysisForm" class="repository-form">
+                    <div class="form-group">
+                        <label for="repoUrl" class="form-label">GitHub Repository URL</label>
+                        <input type="url" id="repoUrl" class="form-control" placeholder="e.g., https://github.com/username/repository" required aria-required="true"> <!-- Changed type to url -->
+                    </div>
+                    <!-- NEW: AI Provider Selection -->
+                    <div class="form-group">
+                        <label for="aiProviderSelect" class="form-label">AI Provider</label>
+                        <select id="aiProviderSelect" class="form-control" aria-label="Select AI Provider">
+                            <option value="openai" selected>OpenAI (GPT-3.5/4)</option>
+                            <option value="claude">Anthropic Claude (Soon)</option>
+                            <option value="deepseek">Deepseek Coder (Soon)</option>
+                            <!-- Add other providers as needed -->
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="analysisDepth" class="form-label">Analysis Depth</label>
+                        <select id="analysisDepth" class="form-control" aria-label="Select analysis depth">
+                            <option value="quick">Quick Overview</option>
+                            <option value="standard" selected>Standard Analysis</option>
+                            <option value="deep">Deep Analysis (Advanced)</option>
+                        </select>
+                    </div>
+                    <button type="submit" id="analyzeBtn" class="analyze-btn">Analyze Repository</button>
+                    <p class="api-key-notice">
+                        <i class="fas fa-lock" aria-hidden="true"></i> Your API key is securely managed via the APIKeyConnect extension.
+                    </p>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content Area -->
+    <main id="main-content" class="main">
+        <div class="container">
+            <!-- Results Section -->
+            <section id="results" class="results-section" aria-live="polite" tabindex="-1" style="display: none;" aria-labelledby="results-heading">
+                <div class="data-card" id="repoInfoCard">
+                    <h2 id="results-heading" class="card-title">Repository Analysis Results</h2>
+                    <p class="card-description">Overview of the analyzed repository and its key statistics.</p>
+                    <div id="repoInfo"></div>
+                    <div class="repo-summary" id="repoSummary" aria-label="Repository Statistics"></div>
+                </div>
+                <div class="data-card">
+                    <h2 class="card-title">Directory Structure</h2>
+                    <p class="card-description">Simplified view of the repository's file organization.</p>
+                    <div class="structure-viewer">
+                        <div class="dir-tree" id="dirTree" role="tree" aria-label="Repository Directory Tree"></div>
+                    </div>
+                </div>
+                <div class="data-card">
+                    <h2 class="card-title">AI-Generated Issue Recommendations</h2>
+                    <p class="card-description">Issue recommendations powered by the selected AI provider based on repository analysis.</p>
+                    <div class="issues-list" id="issuesList" aria-label="Generated Issue Recommendations"></div>
+                </div>
+            </section>
+
+            <!-- Features Section -->
+            <section id="features" class="features-section" aria-labelledby="features-heading">
+                <header class="section-header">
+                    <h2 id="features-heading">Why Use RepoAnalyzer?</h2>
+                    <p>Powerful AI-driven analysis to help maintainers and contributors identify improvement opportunities.</p>
+                </header>
+                <ul class="features-grid">
+                    <li class="feature-item">
+                        <figure aria-hidden="true"><i class="fas fa-lightbulb"></i></figure>
+                        <h3>Smart Issue Generation</h3>
+                        <p>Our AI examines code patterns, documentation, tests, and more to recommend meaningful issues.</p>
+                    </li>
+                    <li class="feature-item">
+                        <figure aria-hidden="true"><i class="fas fa-shield-alt"></i></figure>
+                        <h3>Secure API Key Handling</h3>
+                        <p>Connect securely via APIKeyConnect. Your keys are never sent to our servers.</p>
+                    </li>
+                     <li class="feature-item">
+                        <figure aria-hidden="true"><i class="fas fa-brain"></i></figure>
+                        <h3>Multi-AI Support</h3>
+                        <p>Choose your preferred AI provider like OpenAI, with more coming soon.</p>
+                    </li>
+                    <li class="feature-item">
+                        <figure aria-hidden="true"><i class="fas fa-code"></i></figure>
+                        <h3>In-Depth Analysis</h3>
+                        <p>Go beyond basic stats with multi-stage, contextual code examination.</p>
+                    </li>
+                </ul>
+            </section>
+
+            <!-- How It Works Section -->
+            <section id="how-it-works" class="how-it-works-section" aria-labelledby="how-it-works-heading">
+                <header class="section-header">
+                    <h2 id="how-it-works-heading">How It Works</h2>
+                    <p>Our process is simple, secure, and powerful.</p>
+                </header>
+                <ol class="steps-grid">
+                    <li class="step-item">
+                        <figure aria-hidden="true"><i class="fas fa-key"></i></figure>
+                        <h3>1. Connect Provider API</h3>
+                        <p>Select your AI Provider and securely connect its API key using APIKeyConnect.</p>
+                    </li>
+                    <li class="step-item">
+                        <figure aria-hidden="true"><i class="fas fa-link"></i></figure>
+                        <h3>2. Enter Repository URL</h3>
+                        <p>Paste any public GitHub repository URL you want to analyze.</p>
+                    </li>
+                    <li class="step-item">
+                        <figure aria-hidden="true"><i class="fas fa-cogs"></i></figure>
+                        <h3>3. Advanced AI Analysis</h3>
+                        <p>Our multi-stage process examines structure, selects key files, and performs targeted AI reviews.</p>
+                    </li>
+                    <li class="step-item">
+                        <figure aria-hidden="true"><i class="fas fa-clipboard-list"></i></figure>
+                        <h3>4. Get Recommendations</h3>
+                        <p>Review prioritized, AI-generated issues and insights about the repository.</p>
+                    </li>
+                </ol>
+            </section>
+        </div>
+    </main>
+
+    <!-- Processing Popup -->
+    <div id="processingPopup" class="processing-popup" role="dialog" aria-modal="true" aria-labelledby="processingTitle" aria-describedby="processingSubtitle" tabindex="-1" style="display: none;">
+        <div class="processing-content">
+            <header class="processing-header">
+                <h3 id="processingTitle" class="processing-title">Analyzing Repository</h3>
+                <p id="processingSubtitle" class="processing-subtitle">Please wait while we process the repository</p>
+            </header>
+            <div class="processing-steps" id="processingSteps" aria-label="Analysis Steps"></div>
+            <footer class="processing-footer">
+                <div class="processing-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-labelledby="statusText">
+                    <div id="progressBar" class="progress-bar" style="width: 0%;"></div>
+                </div>
+                <div class="processing-status" id="statusContainer">
+                    <span id="statusText">Initializing analysis</span>
+                    <span class="loading-dots" aria-hidden="true"></span>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <div class="container">
+            <div class="footer-content">
+                 <div class="footer-logo">
+                     <span class="logo-icon" aria-hidden="true"><i class="fas fa-code-branch"></i></span>
+                     RepoAnalyzer
+                 </div>
+                 <p class="footer-description">Analyze GitHub repositories and generate intelligent issue recommendations using AI.</p>
+            </div>
+            <div class="footer-bottom">
+                <p>© <span id="copyright-year">2024</span> RepoAnalyzer. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Load main script as a module -->
+    <script type="module" src="main.js"></script>
+    <!-- Inline script for dynamic year -->
+    <script>document.getElementById('copyright-year').textContent = new Date().getFullYear();</script>
+</body>
+</html>
