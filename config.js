@@ -10,39 +10,38 @@ export const GITHUB_FETCH_DELAY = 500;        // Milliseconds between GitHub fet
 export const MAX_ISSUES_PER_ENTITY = 3;         // Max issues AI should generate per file/group
 export const MAX_FINAL_ISSUES = 20;             // Max issues to display after synthesis
 
-// Provider configurations (expand as needed)
+// Provider configurations with EXACT key names matching the working website
 export const AI_PROVIDERS = {
     openai: {
         name: 'OpenAI',
         serviceId: 'openai', // ID expected by APIKeyConnect
-        keyNames: ['OpenAI API', 'OpenAI Key', 'OpenAI', 'Default OpenAI API Key'],
-        models: { // Example models
+        keyNames: [
+            "Default OpenAI Key"  // This is the exact key name used in the working site
+        ],
+        models: {
             default: 'gpt-3.5-turbo',
-            advanced: 'gpt-4' // Or newer models if available
+            advanced: 'gpt-4'
         },
         apiEndpoint: 'https://api.openai.com/v1/chat/completions'
     },
     claude: {
         name: 'Anthropic Claude',
-        serviceId: 'anthropic', // Hypothetical ID
-        keyNames: ['Anthropic API Key', 'Claude API Key', 'Anthropic'],
+        serviceId: 'anthropic',
+        keyNames: ['My Claude API Key'], // Match the name format used in working site
         models: {
-            default: 'claude-3-sonnet-20240229', // Example model
+            default: 'claude-3-sonnet-20240229',
             advanced: 'claude-3-opus-20240229'
         },
-        apiEndpoint: 'https://api.anthropic.com/v1/messages' // Example endpoint
+        apiEndpoint: 'https://api.anthropic.com/v1/messages'
     },
     deepseek: {
         name: 'Deepseek Coder',
-        serviceId: 'deepseek', // Hypothetical ID
-        keyNames: ['Deepseek API Key', 'Deepseek'],
-         models: {
-            default: 'deepseek-coder', // Example model
-            advanced: 'deepseek-coder' // Or a larger version if available
+        serviceId: 'deepseek',
+        keyNames: ['My Deepseek API Key'], // Match the name format used in working site
+        models: {
+            default: 'deepseek-coder',
+            advanced: 'deepseek-coder'
         },
-        apiEndpoint: 'https://api.deepseek.com/v1/chat/completions' // Example endpoint
+        apiEndpoint: 'https://api.deepseek.com/v1/chat/completions'
     }
-    // Add other providers here
 };
-
-// --- Add any other shared constants ---
